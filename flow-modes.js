@@ -7,7 +7,7 @@ export const MODES={
     note:'Your question and flow XML are sent to Claude. Answers explain the loaded version; your flow stays unchanged.',send:'Ask',
     progressTitle:'Understanding your flow',status:'Reading your flow and answering your question…',
     progressDetail:'Tracing the flow to answer your question. Your flow stays unchanged.',failureTitle:'Could not answer your question',
-    suggestions:[['Explain this flow','Explain what this flow does in plain language, from its trigger to each outcome.'],['Walk through the paths','Walk me through the decision paths in this flow and explain when each one runs.'],['Which records change?','Which records does this flow read, create, update, or delete, and under what conditions?']]
+    suggestions:[['Explain the flow','Explain what this flow does in plain language, from its trigger to each outcome.',true],['Walk through the paths','Walk me through the decision paths in this flow and explain when each one runs.'],['Which records change?','Which records does this flow read, create, update, or delete, and under what conditions?']]
   },
   edit:{
     eyebrow:'A LITTLE PROMPT. A BETTER FLOW.',title:'What would you like to change?',

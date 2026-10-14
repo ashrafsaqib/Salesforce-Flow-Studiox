@@ -1,4 +1,4 @@
-# Salesforce Flow Chat
+# Flow Studiox
 
 A dependency-free Chrome Manifest V3 extension. Click its toolbar icon while viewing Salesforce Flow Builder to open a persistent chat window. It retrieves Flow XML with Metadata API, sends your instruction and XML to Claude, then automatically deploys the completed XML as a new draft version and opens that version in Salesforce Flow Builder.
 
@@ -17,7 +17,7 @@ Refreshing or closing the Salesforce tab preserves the flow and conversation in 
 ## Install
 
 1. Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, and select this directory.
-2. Pin **Salesforce Flow Chat**. Open the latest saved version of a flow in Salesforce Flow Builder and click the extension.
+2. Pin **Flow Studiox**. Open the latest saved version of a flow in Salesforce Flow Builder and click the extension.
 3. Expand Connection settings. The Salesforce instance URL is detected from the opened Setup or Lightning tab, including enhanced-domain sandboxes. Confirm the URL, enter the OAuth Consumer Key configured by your administrator, then click **Connect Salesforce**. Complete Salesforce login/consent. Enter your Claude API key, a model available to your account, and the supported Salesforce API version. You can also paste an access token under **Administrator setup / manual token**. When switching orgs, the old Salesforce token is cleared from the current window while the saved settings remain stored.
 4. Click **Save connection**, then **Load opened flow**. If detection fails, supply the Flow API name. Describe a change and click **Send to Claude**.
 5. Keep the chat window open until generation and deployment finish. After a successful save, the extension opens the latest available flow version, including when Salesforce retains the existing version number. If lookup or Flow Builder navigation fails, it opens the flow list in Salesforce Setup. If the original tab was closed or moved to another org, it opens a new tab. Clarification requests, incomplete Claude output, and invalid XML are not saved. Deployment errors remain visible with XML available for correction or retry.

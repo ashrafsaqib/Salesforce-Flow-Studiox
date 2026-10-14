@@ -16,7 +16,7 @@ async function rememberFlow(name){
   rememberedFlow={name,instance:config.instance};
   await chrome.storage.local.set({flowContext:rememberedFlow});
 }
-function rememberedName(){return rememberedFlow?.instance===config?.instance?rememberedFlow.name:undefined;}
+function rememberedName(){return config?.instance && rememberedFlow?.instance===config.instance?rememberedFlow.name:undefined;}
 async function reopenFlow(name){
   const current=await latest(name);
   if(!current)throw Error('The remembered flow could not be found in Salesforce.');
@@ -39,8 +39,9 @@ function renderMode(){
   $('welcomeEyebrow').textContent=copy.eyebrow;$('welcomeTitle').textContent=copy.title;$('welcomeDescription').textContent=copy.description;
   $('prompt').placeholder=copy.placeholder;$('promptLabel').textContent=mode==='understand'?'Ask a question about your flow':'Describe a change to your flow';
   $('sendLabel').textContent=copy.send;$('send').setAttribute('aria-label',mode==='understand'?'Ask about your flow':'Update your flow');$('composerNote').textContent=copy.note;
-  $('suggestions').replaceChildren(...copy.suggestions.map(([label,prompt])=>{
+  $('suggestions').replaceChildren(...copy.suggestions.map(([label,prompt,submit=false])=>{
     const button=document.createElement('button');button.type='button';button.className='suggestion';button.dataset.prompt=prompt;button.textContent=label;
+    if(submit)button.dataset.submit='true';
     const arrow=document.createElement('span');arrow.textContent='↗';arrow.setAttribute('aria-hidden','true');button.append(arrow);
     return button;
   }));
@@ -80,7 +81,7 @@ function message(role,text){
   const node=document.createElement('article');node.className=`message${role==='You'?' user':''}`;
   const avatar=document.createElement('span');avatar.className='message-avatar';avatar.textContent=role==='You'?'Y':'✧';avatar.setAttribute('aria-hidden','true');
   const body=document.createElement('div');body.className='message-body';
-  const label=document.createElement('p');label.className='message-role';label.textContent=role==='Claude'?'Flow Studio':role;
+  const label=document.createElement('p');label.className='message-role';label.textContent=role==='Claude'?'Flow Studiox':role;
   const badge=document.createElement('span');badge.className='message-mode';badge.textContent=mode==='understand'?'Understand':'Edit';label.append(badge);
   const content=document.createElement('div');content.className='message-text';
   if(role==='Claude' && mode==='understand')renderAnswer(content,text);else content.textContent=text;
@@ -136,8 +137,9 @@ async function tabContext(){
   const candidates=[...url.searchParams.values(),url.pathname,url.hash];
   for(const candidate of [...candidates]){try{const nested=new URL(candidate,url.origin); candidates.push(...nested.searchParams.values());}catch{}}
   const id=candidates.map(s=>s.match(/\b(301[a-zA-Z0-9]{12}(?:[a-zA-Z0-9]{3})?)\b/)?.[1]).find(Boolean);
-  const name=url.searchParams.get('flowApiName') || url.searchParams.get('apiName');
-  return {id,name};
+  const versionedName=url.searchParams.get('flowId')?.match(/^([a-zA-Z][a-zA-Z0-9_]*)-([1-9][0-9]*)$/);
+  const name=url.searchParams.get('flowApiName') || url.searchParams.get('apiName') || versionedName?.[1];
+  return {id,name,version:versionedName?Number(versionedName[2]):undefined};
 }
 async function latest(name){return (await query(config,`SELECT Id, VersionNumber, LastModifiedDate FROM Flow WHERE Definition.DeveloperName = '${name}' ORDER BY VersionNumber DESC LIMIT 1`))[0];}
 async function readFlow(name){
@@ -175,6 +177,7 @@ async function loadFlow(){
   const current=context.unavailable?await reopenFlow(name):await latest(name);
   if(!current)throw Error('Flow not found in the configured Salesforce org.');
   if(context.id && !current.Id.startsWith(context.id.slice(0,15)))throw Error('The opened flow is an older version. Open the latest version before editing.');
+  if(context.version && Number(current.VersionNumber)!==context.version)throw Error('The opened flow is an older version. Open the latest version before editing.');
   actionProgress?.update(`Reading ${name}, version ${current.VersionNumber}, from Salesforce…`);
   status('Fetching flow XML through Salesforce Metadata API…');const xml=await readFlow(name);
   const after=await latest(name);if(after.Id!==current.Id || after.LastModifiedDate!==current.LastModifiedDate)throw Error('Flow changed during retrieval. Load it again.');
@@ -346,7 +349,7 @@ async function init(){
   const {pendingDeployment}=await chrome.storage.local.get('pendingDeployment');
   const connected=await verifyConnection();
   const {flowContext}=await chrome.storage.local.get('flowContext');
-  if(flowContext?.instance===config?.instance && /^[a-zA-Z][a-zA-Z0-9_]*$/.test(flowContext.name))rememberedFlow=flowContext;
+  if(config?.instance && flowContext?.instance===config.instance && /^[a-zA-Z][a-zA-Z0-9_]*$/.test(flowContext.name))rememberedFlow=flowContext;
   if(pendingDeployment && config?.instance===pendingDeployment.instance){setMode('edit');await run(()=>monitor(pendingDeployment.id));}
   else if(config && connected){
     try{const context=await tabContext();if(context.id || context.name)await run(loadFlow);}catch{/* Manual selection remains available. */}
@@ -368,11 +371,15 @@ chrome.tabs.onUpdated.addListener((id,change,tab)=>{
 $('settings').addEventListener('toggle',()=>{for(const id of ['settingsToggle','headerConnect'])$(id).setAttribute('aria-expanded',String($('settings').open));});
 $('understandMode').addEventListener('click',()=>setMode('understand'));
 $('editMode').addEventListener('click',()=>setMode('edit'));
-$('suggestions').addEventListener('click',event=>{const button=event.target.closest('[data-prompt]');if(!button)return;$('prompt').value=button.dataset.prompt;$('prompt').focus();});
+$('suggestions').addEventListener('click',event=>{
+  const button=event.target.closest('[data-prompt]');if(!button || busy)return;
+  $('prompt').value=button.dataset.prompt;
+  if(button.dataset.submit==='true' && mode==='understand')$('chatForm').requestSubmit();
+  else $('prompt').focus();
+});
 $('prompt').addEventListener('keydown',event=>{if(event.key==='Enter' && (event.ctrlKey || event.metaKey) && !event.isComposing){event.preventDefault();$('chatForm').requestSubmit();}});
 $('xml').addEventListener('input',()=>{$('save').disabled=busy || !loaded || !$('xml').value || $('xml').value===savedXml;$('save').textContent='Save edited XML as new version';});
 for(const id of ['instance','token','version'])$(id).addEventListener('input',()=>{connectionCheck++;connectionState('','Settings changed','Save settings to verify this connection.');});
 renderMode();
 init().catch(error=>status(error.message,true));
-
 
