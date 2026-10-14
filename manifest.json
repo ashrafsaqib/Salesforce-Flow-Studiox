@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Salesforce Flow Chat",
+  "version": "1.0.0",
+  "description": "Edit the opened Salesforce flow with Claude and save a draft through Metadata API.",
+  "permissions": ["activeTab", "storage", "identity"],
+  "host_permissions": ["https://*.salesforce.com/*", "https://*.salesforce-setup.com/*", "https://*.force.com/*", "https://api.anthropic.com/*"],
+  "action": { "default_title": "Edit Salesforce flow with Claude" },
+  "background": { "service_worker": "background.js" }
+}
