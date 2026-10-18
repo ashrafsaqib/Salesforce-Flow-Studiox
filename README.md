@@ -1,52 +1,65 @@
-# Flow Studiox
+﻿# Flow Studiox
 
-A dependency-free Chrome Manifest V3 extension. Click its toolbar icon while viewing Salesforce Flow Builder to open a persistent chat window. It retrieves Flow XML with Metadata API, sends your instruction and XML to Claude, then automatically deploys the completed XML as a new draft version and opens that version in Salesforce Flow Builder.
+Understand and edit Salesforce Flows through conversation with Claude. Flow Studiox is a dependency-free Chrome extension that reads saved Flow XML, answers questions, and saves requested changes as a new draft in Salesforce Flow Builder.
 
-The interface centers on your prompt and conversation. Connection settings stay hidden by default; click **Connect** or the settings button in the header to open them. OAuth fields and setup instructions are exposed directly inside the connection panel. The Salesforce indicator turns green after a successful Tooling API request and amber while checking; **Connect** appears when disconnected or verification fails. Flow selection and the flow context box appear only after Salesforce API access is verified, and hide again if the connection becomes unavailable or its settings change. This verifies API access, not deployment permission or Claude connectivity. Saved tokens are checked again when you reopen the window. Example prompts fill the composer; Ctrl+Enter (Cmd+Enter on Mac) sends. The opened flow loads automatically when it can be identified, or when you send your first prompt. Generated XML appears in a card with download and retry-save actions. You can edit the XML and save those edits as another version.
+[![Flow Studiox: understand Salesforce Flows and change them through conversation](flow-studiox-linkedin-banner.png)](https://youtu.be/nemAxwR_bLE?si=CyEqwO15f_n4rr92)
 
-Each prompt gets a live activity card showing flow retrieval, Claude generation, XML checks, deployment, saved-version verification, and opening Flow Builder. Expand **View activity** for step details, elapsed timings and errors. Animations indicate active work; green segments indicate completed API steps rather than estimated progress. Clarification requests stop with a needs-input state. Deployment recovery has its own activity card. Animations respect reduced-motion preferences.
+**[Watch the demo and installation walkthrough on YouTube](https://youtu.be/nemAxwR_bLE?si=CyEqwO15f_n4rr92)**
 
-## Understand and Edit
+## What you can do
 
-**Understand** is the default mode. Ask what the loaded flow does, how its decisions work, which records it changes, or follow up on an answer. Responses use the loaded Salesforce version and name relevant elements. Understand requests never generate draft artifacts or deploy changes. Up to six recent question/answer pairs provide follow-up context to Claude; this context resets when the loaded flow or version changes. Unsaved XML edits are excluded from explanations.
+| Mode | Use it to | Result |
+| --- | --- | --- |
+| **Understand** (default) | Ask what a flow does, how decisions work, or which records it changes. | Explanations based on the loaded Salesforce version, with follow-up questions supported. No deployment. |
+| **Edit** | Describe a change to the loaded flow. | Validated XML automatically saved as a new **Draft** and opened in Flow Builder. The flow is never activated. |
 
-Switch to **Edit** to request changes. Completed XML is validated and automatically saved as a new draft using the existing deployment workflow. Each mode has its own conversation and unfinished prompt for the current window. Switching preserves both, and the draft XML card appears in Edit only. Mode buttons are disabled while a request runs. If a saved deployment needs recovery when the window opens, the extension switches to Edit to finish it.
+Each mode keeps its own conversation and unfinished prompt. In Edit, you can download the generated XML, adjust it manually, or retry a failed save. Expand **View activity** for retrieval, generation, validation, and deployment details, timings, and errors.
 
-Refreshing or closing the Salesforce tab preserves the flow and conversation in the extension window. When the source tab is unavailable, the next question or reload opens the latest available version of the same flow in a new tab. The flow API name and org are also saved locally so reopening the extension can recover the flow even without its original tab. A failed reload keeps the previously loaded context. Existing edits still check for concurrent Salesforce changes before saving.
+## Install and connect
 
-## Install
+You need Chrome, a Salesforce user with API access and metadata deployment/flow management permissions, and a Claude API key with access to your chosen model. A Salesforce administrator must complete the [OAuth setup](#one-time-salesforce-administrator-setup) before your first connection.
 
-1. Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, and select this directory.
-2. Pin **Flow Studiox**. Open the latest saved version of a flow in Salesforce Flow Builder and click the extension.
-3. Expand Connection settings. The Salesforce instance URL is detected from the opened Setup or Lightning tab, including enhanced-domain sandboxes. Confirm the URL, enter the OAuth Consumer Key configured by your administrator, then click **Connect Salesforce**. Complete Salesforce login/consent. Enter your Claude API key, a model available to your account, and the supported Salesforce API version. You can also paste an access token under **Administrator setup / manual token**. When switching orgs, the old Salesforce token is cleared from the current window while the saved settings remain stored.
-4. Click **Save connection**, then **Load opened flow**. If detection fails, supply the Flow API name. Describe a change and click **Send to Claude**.
-5. Keep the chat window open until generation and deployment finish. After a successful save, the extension opens the latest available flow version, including when Salesforce retains the existing version number. If lookup or Flow Builder navigation fails, it opens the flow list in Salesforce Setup. If the original tab was closed or moved to another org, it opens a new tab. Clarification requests, incomplete Claude output, and invalid XML are not saved. Deployment errors remain visible with XML available for correction or retry.
+1. Download or clone this repository. Open `chrome://extensions`, enable **Developer mode**, and click **Load unpacked**. Select the repository folder containing `manifest.json`.
+2. Pin **Flow Studiox**, open the latest saved version of a flow in Salesforce Flow Builder, and click the extension icon.
+3. Click **Connect** or the header settings button. Confirm the detected Salesforce instance URL, enter your administrator's **Consumer Key (Client ID)**, and click **Connect Salesforce**. Complete login and consent. A manual access token can also be entered under **Administrator setup / manual token**.
+4. Enter your **Claude API key**, a model available to your account, and a supported **Salesforce API version**. Click **Save connection**.
+5. Click **Load opened flow** if the flow has not loaded automatically. If detection fails, enter its Flow API name.
+6. Ask a question in **Understand**, or switch to **Edit** and describe a change. Send with **Ctrl+Enter** (**Cmd+Enter** on Mac), or use the send button.
+
+Keep the extension window open until the request finishes. The Salesforce indicator turns green after API access is verified; this does not verify deployment permission or Claude connectivity. Flow selection appears once Salesforce access is verified.
+
+### One-time Salesforce administrator setup
+
+1. Load the extension and open **Connect**. Copy the displayed **OAuth callback URL**: `https://<extension-id>.chromiumapp.org/salesforce`.
+2. In Salesforce Setup, create an **External Client App**, or use a compatible Connected App. Enable OAuth and set the callback URL to the exact value copied above.
+3. Enable **Manage user data via APIs (`api`)** and the authorization code/web server flow where required. Enable **Require Proof Key for Code Exchange (PKCE)** and disable **Require Secret for Web Server Flow**. The extension uses no client secret.
+4. Configure access policies for the intended users. If administrator preapproval is required, assign access through profiles or permission sets. Save and allow time for the settings to propagate.
+5. Copy the app's **Consumer Key (Client ID)** into the extension.
+
+Unpacked extension IDs can change across paths or machines. Register the callback shown by each installation, or distribute a packaged extension with a stable ID. If login fails, check the callback, access policies, PKCE, and client-secret requirement. See [Salesforce OAuth setup](https://help.salesforce.com/s/articleView?id=sf.configure_external_client_app_oauth_settings.htm&language=en_US&type=5) and [Chrome Identity](https://developer.chrome.com/docs/extensions/reference/api/identity).
+
+## Working with flows
+
+- **Saved versions only.** The extension reads the latest saved metadata by Flow API name. Older opened versions are rejected, and unsaved canvas changes are excluded.
+- **Context follows the flow.** Understand uses up to six recent question/answer pairs; that history resets when the loaded flow or version changes. Explanations exclude unsaved XML edits. Edit requests send the current instruction and XML, rather than the full transcript.
+- **Drafts stay reviewable.** XML is checked locally for its root, namespace, and draft status; Salesforce performs schema and org validation. Clarification requests, incomplete output, and invalid XML are not saved. Claude has no org schema, so unknown fields may require clarification. Deployment errors remain visible with XML available for correction or retry.
+- **Concurrent edits are checked.** The extension checks the source version and timestamp before saving. Changes after that check are still possible, so avoid simultaneous edits.
+- **Navigation has a fallback.** After saving, the extension opens the latest available version, even if Salesforce keeps the same version number. If lookup or navigation fails, it opens the Salesforce Flows list. A closed source tab or a tab in another org causes a new tab to open. XML is refreshed from Salesforce for subsequent requests.
+- **Work can recover.** The open extension retains its flow and conversation when the Salesforce tab closes or refreshes. The flow name and org are saved locally for later recovery; a failed reload keeps the previous context. Pending deployment details and XML are also saved so reopening with the same connection can resume polling. Closing the window interrupts retrieval or generation, but does not cancel an existing Salesforce deployment. Navigation failures do not trigger a second deployment.
 
 ## Authentication and data
 
-**Connect Salesforce** uses Chrome Identity's interactive web authentication with OAuth authorization code + PKCE (S256) and verifies the callback URL and random state. It exchanges the code directly with Salesforce without a client secret and uses the returned `instance_url`. The Salesforce user needs API and metadata deployment permissions (including appropriate flow management permissions). Expired tokens require clicking Connect Salesforce again. This version does not request or store refresh tokens. It does not scrape session cookies. The OAuth Consumer Key, access token, Claude key, instance URL, model and API version are saved in `chrome.storage.local`.
+Salesforce login uses OAuth authorization code + PKCE (S256) through Chrome Identity, with callback and random-state verification. The extension exchanges the code directly with Salesforce and uses the returned instance URL. It does not collect a client secret, scrape session cookies, or request refresh tokens. Reconnect when an access token expires or is revoked. Switching orgs clears the old Salesforce token from the current window.
 
-### One-time administrator setup
+Connection settings and credentials—including the Salesforce access token and Claude key—are saved in `chrome.storage.local`. They persist in the current Chrome profile across restarts and extension reloads, are not synced to other devices, and remain until cleared or the extension is uninstalled. Storage is restricted to trusted extension contexts, but is not an encrypted credentials vault. Salesforce sign-in saves its token automatically; use **Save connection** to persist the other settings.
 
-1. Load the extension and click **Connect** to open Connection settings. Copy the read-only **OAuth callback URL** (`https://<extension-id>.chromiumapp.org/salesforce`) from the visible setup section.
-2. In Salesforce Setup, create an **External Client App** (or use an existing compatible Connected App) and enable OAuth. Set its callback URL to the exact copied URL.
-3. Enable **Manage user data via APIs (`api`)**. Enable the authorization code/web server flow where required. Enable **Require Proof Key for Code Exchange (PKCE)** and disable **Require Secret for Web Server Flow**, because a browser extension cannot hold a confidential client secret.
-4. Configure app access policies to allow the intended users; if administrator preapproval is required, assign the app to their profiles or permission sets. Save and allow time for Salesforce settings to propagate.
-5. Copy the app's **Consumer Key (Client ID)** into the extension. No consumer secret is needed. The Client ID is remembered for subsequent connections.
+**Sending a request transmits the loaded Flow XML and your prompt directly to Anthropic.** Flow XML may contain sensitive business logic and literal values. Never distribute a shared API key with the extension; use a trusted server to hold the Claude key for a centrally distributed production app.
 
-Unpacked extension IDs can change when loaded from a different path or machine. Register that installation's displayed callback, or distribute a packaged extension with a stable ID and preconfigure its public Client ID to reduce setup for end users. Browser restarts preserve settings and tokens, but Salesforce can expire or revoke a token; reconnect when that happens. If sign-in fails, verify callback matching, app access policy, PKCE and the secret requirement. See [Salesforce's OAuth setup](https://help.salesforce.com/s/articleView?id=sf.configure_external_client_app_oauth_settings.htm&language=en_US&type=5) and [Chrome Identity](https://developer.chrome.com/docs/extensions/reference/api/identity).
+## Technical notes
 
-Click **Save connection** to persist all connection settings. Successful Salesforce sign-in also saves its token automatically. Existing session settings are migrated to persistent storage on the first open after updating. Settings remain in this Chrome profile across window closures, browser restarts and extension reloads until extension data is cleared or the extension is uninstalled. They are not synced to other devices. Local storage is restricted to trusted extension contexts; it is not an encrypted credentials vault. A consumer secret is not collected because the PKCE flow does not use one. The extension calls Anthropic directly using its browser-access header; for a centrally distributed production app, use a trusted server to hold the Claude key instead. Never distribute an extension containing a shared API key. Flow XML can contain sensitive business logic and literal values; Send transmits the entire loaded XML and prompt to Anthropic.
-
-## Behavior and limits
-
-- Reads the latest saved flow metadata. Older opened versions are rejected because modern Metadata API reads flows by API name rather than selected builder version. Unsaved canvas changes are not included.
-- Subsequent prompts use the reviewed XML as their source. Each request includes your current instruction and XML, not the whole transcript.
-- Writes status `Draft`; does not activate the flow. After deployment, the extension queries the flow by API name, orders by version descending, and opens the latest available version. It accepts an unchanged version number. Missing versions, lookup errors, and Flow Builder navigation errors fall back to `/lightning/setup/Flows/home`. A successful deployment is marked complete before navigation, so browser failures cannot cause it to be submitted again. XML is refreshed from Salesforce for subsequent questions and edits.
-- Uses Tooling API to resolve the opened `301…` flow ID and detect version/timestamp changes before saving. A concurrent edit after that check is still possible; avoid simultaneous edits.
-- XML is parsed and root/namespace/status checked locally; Salesforce deployment performs schema and org validation. Claude is not given your org schema, so requests requiring unknown fields may need clarification. Salesforce errors appear in the chat window.
-- A pending deployment ID, source version/tab, and generated XML are persisted without credentials in that record. Reopening the extension with the same connection resumes polling and opens the saved version after success. A browser navigation error does not cause another deployment. Closing the window does not cancel Salesforce's deployment, but does interrupt retrieval or generation.
-- No runtime dependencies, remote scripts, or build step. Domain permissions cover Salesforce and Anthropic; custom non-Salesforce domains require a manifest change.
-- Live Salesforce and Claude integration must be tested with your credentials in a sandbox org before production use.
+- Chrome Manifest V3; no runtime dependencies, remote scripts, or build step.
+- Uses Salesforce Metadata API for reading/deployment and Tooling API for flow identity, version checks, and saved-version lookup.
+- Host permissions cover Salesforce and Anthropic. Custom non-Salesforce domains require a manifest change.
+- Test live Salesforce and Claude integration with your credentials in a sandbox org before production use.
 
 API references: [Salesforce readMetadata](https://developer.salesforce.com/docs/atlas.en-us.api_meta.meta/api_meta/meta_readMetadata.htm), [Salesforce deploy](https://developer.salesforce.com/docs/atlas.en-us.api_meta.meta/api_meta/meta_deploy.htm), [Claude API](https://platform.claude.com/docs/en/api/overview).
