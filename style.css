@@ -218,3 +218,21 @@ input:focus,textarea:focus{border-color:#0176d3;box-shadow:0 0 3px #0176d3}
 .activity-card[data-state=paused]{border-left-color:#a96404}
 .activity-card[data-state=paused] .activity-orb{background:#fff8e6;color:#a96404}
 @media(max-width:500px){.topbar{margin:0 -12px;padding:10px 12px}}
+
+/* Point to the two modes after connection setup is complete. */
+.topbar .mode-switch.mode-highlight{border-color:#0176d3;box-shadow:0 0 0 3px #d8e6fe;outline:1px solid #0176d3;outline-offset:2px}
+.mode-hint{flex:0 0 100%;order:4;margin:3px 0 0;padding:9px 10px;background:#eef4ff;border:1px solid #aacbff;border-radius:4px;color:#032d60;font-size:11px;line-height:1.6;outline:none}
+.mode-hint>span{font-size:16px;font-weight:700;margin-right:6px;color:#0176d3}
+.mode-hint:focus-visible{outline:2px solid #0176d3;outline-offset:2px}
+
+/* Actionable feedback when Salesforce cannot expose a flow. */
+.flow-feedback{margin:14px 0;padding:12px;border:1px solid #e4ba57;border-left:3px solid #a96404;border-radius:4px;background:#fff8e6;color:#444;font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+.flow-feedback h2{margin:0 0 8px;font-size:14px;color:#6f4e00}
+.flow-feedback p{margin:8px 0}
+.flow-feedback ul{margin:8px 0;padding-left:20px}
+.flow-feedback li{margin:5px 0}
+.flow-feedback-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.flow-feedback a{color:#0b5cab;font-size:11px}
+.flow-feedback details{border-top:1px solid #e4ba57;margin-top:12px;padding-top:8px;font-size:11px}
+.flow-feedback summary{cursor:pointer;color:#6f4e00}
+#flowFeedbackPrevious{font-weight:600}

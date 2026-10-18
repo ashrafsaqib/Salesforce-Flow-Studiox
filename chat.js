@@ -1,5 +1,6 @@
 ﻿import {NS,escapeXml,parseXml,elements,value,draftXml,soap,query,zip,base64} from './api.js';
 import {instanceFromTabUrl} from './salesforce-url.js';
+import {flowFilter,flowApiName} from './flow-identity.js';
 import {connectSalesforce,oauthRedirectUrl} from './oauth.js';
 import {migrateSessionSettings} from './settings-storage.js';
 import {ActionProgress,EDIT_STEPS} from './progress.js';
@@ -30,6 +31,18 @@ async function ensureFlowTab(){
   await reopenFlow(loaded.name);
 }
 const modeViews={understand:{nodes:[],draft:''},edit:{nodes:[],draft:''}};
+function finishConnectionUI(){
+  $('settings').open=false;
+  for(const id of ['settingsToggle','headerConnect'])$(id).setAttribute('aria-expanded','false');
+  $('modeHint').hidden=false;
+  $('understandMode').parentElement.classList.add('mode-highlight');
+  $('modeHint').scrollIntoView({block:'nearest',behavior:'smooth'});
+  $('modeHint').focus({preventScroll:true});
+}
+function dismissModeHint(){
+  $('modeHint').hidden=true;
+  $('understandMode').parentElement.classList.remove('mode-highlight');
+}
 function renderMode(){
   const copy=MODES[mode];document.body.dataset.mode=mode;
   for(const key of Object.keys(MODES)){
@@ -48,7 +61,9 @@ function renderMode(){
   $('welcome').hidden=Boolean($('messages').children.length);$('artifact').hidden=mode!=='edit' || !$('xml').value;
 }
 function setMode(next){
-  if(busy || next===mode || !MODES[next])return;
+  if(busy || !MODES[next])return;
+  dismissModeHint();
+  if(next===mode){$('prompt').focus();return;}
   modeViews[mode]={nodes:[...$('messages').childNodes],draft:$('prompt').value};
   mode=next;actionProgress=undefined;
   $('messages').replaceChildren(...modeViews[mode].nodes);$('prompt').value=modeViews[mode].draft;
@@ -76,6 +91,16 @@ function detectSalesforceTab(tab){
 }
 function beginProgress(steps=EDIT_STEPS,title){$('welcome').hidden=true;actionProgress=new ActionProgress($('messages'),steps,title);}
 function status(text,error=false){$('status').textContent=text;$('status').className=error?'error':'';}
+function flowUnavailable(name,message){
+  return Object.assign(Error(message),{flowUnavailable:true,flowName:name});
+}
+function showFlowFeedback(error){
+  $('flowFeedbackName').textContent=error.flowName;
+  $('flowFeedbackReason').textContent=error.message;
+  $('flowFeedbackPrevious').hidden=!loaded;
+  $('flowFeedback').hidden=false;
+  $('flowFeedback').scrollIntoView({block:'nearest',behavior:'smooth'});
+}
 function message(role,text){
   $('welcome').hidden=true;
   const node=document.createElement('article');node.className=`message${role==='You'?' user':''}`;
@@ -141,17 +166,22 @@ async function tabContext(){
   const name=url.searchParams.get('flowApiName') || url.searchParams.get('apiName') || versionedName?.[1];
   return {id,name,version:versionedName?Number(versionedName[2]):undefined};
 }
-async function latest(name){return (await query(config,`SELECT Id, VersionNumber, LastModifiedDate FROM Flow WHERE Definition.DeveloperName = '${name}' ORDER BY VersionNumber DESC LIMIT 1`))[0];}
+async function latest(name){return (await query(config,`SELECT Id, VersionNumber, LastModifiedDate FROM Flow WHERE ${flowFilter(name)} ORDER BY VersionNumber DESC LIMIT 1`))[0];}
 async function readFlow(name){
-  const doc=await soap(config,'readMetadata',`<type>Flow</type><fullNames>${escapeXml(name)}</fullNames>`);
+  let doc;
+  try{doc=await soap(config,'readMetadata',`<type>Flow</type><fullNames>${escapeXml(name)}</fullNames>`);}
+  catch(error){
+    if(/managed|protected|INSUFFICIENT_ACCESS|insufficient privileges/i.test(error.message))throw flowUnavailable(name,error.message);
+    throw error;
+  }
   const record=elements(doc,'records')[0];
-  if(!record || !value(record,'fullName'))throw Error('Salesforce did not return the requested flow. Check the API name and metadata permissions.');
+  if(!record || !value(record,'fullName'))throw flowUnavailable(name,'Salesforce did not return the requested flow metadata.');
   const out=document.implementation.createDocument(NS,'Flow');
   for(const child of record.children)if(child.localName!=='fullName')out.documentElement.append(out.importNode(child,true));
   return new XMLSerializer().serializeToString(out);
 }
 $('settingsForm').addEventListener('submit',async event=>{
-  event.preventDefault();run(async()=>{config=configure(Object.fromEntries(['instance','token','apiKey','model','version'].map(id=>[id,$(id).value.trim()])));await chrome.storage.local.set({config,salesforceConnection:{instance:config.instance,token:config.token},oauthClientId:$('clientId').value.trim()});loaded=undefined;$('xml').value='';$('download').disabled=true;$('flowInfo').textContent='Use the flow open in Salesforce';const connected=await verifyConnection();$('settings').open=!connected;status(connected?'Settings saved. Describe a change to get started.':'Settings saved. Check the Salesforce connection before continuing.');});
+  event.preventDefault();run(async()=>{config=configure(Object.fromEntries(['instance','token','apiKey','model','version'].map(id=>[id,$(id).value.trim()])));await chrome.storage.local.set({config,salesforceConnection:{instance:config.instance,token:config.token},oauthClientId:$('clientId').value.trim()});loaded=undefined;$('xml').value='';$('download').disabled=true;$('flowInfo').textContent='Use the flow open in Salesforce';const connected=await verifyConnection();$('settings').open=!connected;if(connected)finishConnectionUI();status(connected?'Connected. Choose Understand to explore your flow, or Edit to make changes.':'Settings saved. Check the Salesforce connection before continuing.');});
 });
 $('connect').addEventListener('click',()=>run(async()=>{
   status('Opening Salesforce sign-in…');
@@ -163,19 +193,27 @@ $('connect').addEventListener('click',()=>run(async()=>{
   const connected=await verifyConnection();
   if($('apiKey').value.trim()){
     config=configure(Object.fromEntries(['instance','token','apiKey','model','version'].map(id=>[id,$(id).value.trim()])));
-    await chrome.storage.local.set({config});$('settings').open=!connected;
-    status(connected?'Salesforce connected. Describe a change to get started.':'Sign-in saved. Check your Salesforce API access before continuing.');
-  }else status(connected?'Salesforce connected. Enter your Claude API key and save the connection.':'Sign-in saved. Check your Salesforce API access and add your Claude key.');
+    await chrome.storage.local.set({config});$('settings').open=!connected;if(connected)finishConnectionUI();
+    status(connected?'Connected. Choose Understand to explore your flow, or Edit to make changes.':'Sign-in saved. Check your Salesforce API access before continuing.');
+  }else{
+    $('settings').open=true;$('apiKey').focus();
+    status(connected?'Salesforce connected. Enter your Claude API key and save the connection.':'Sign-in saved. Check your Salesforce API access and add your Claude key.');
+  }
 }));
 async function loadFlow(){
+  $('flowFeedback').hidden=true;
+  try{await loadFlowContent();}
+  catch(error){if(error.flowUnavailable)showFlowFeedback(error);throw error;}
+}
+async function loadFlowContent(){
   if(!config)throw Error('Complete the connection settings first.');
   actionProgress?.start('load','Finding the flow in your Salesforce tab…');
   status('Finding the opened flow…');const context=await tabContext();
   let name=$('flowName').value.trim() || context.name;
-  if(context.id && !name){const records=await query(config,`SELECT Id, Definition.DeveloperName FROM Flow WHERE Id = '${context.id}'`);name=records[0]?.Definition?.DeveloperName;}
+  if(context.id && !name){const records=await query(config,`SELECT Id, Definition.DeveloperName, Definition.NamespacePrefix FROM Flow WHERE Id = '${context.id}'`);name=flowApiName(records[0]?.Definition);}
   if(!name || !/^[a-zA-Z][a-zA-Z0-9_]*$/.test(name))throw Error('Could not detect the flow. Enter its Flow API name and click Load.');
   const current=context.unavailable?await reopenFlow(name):await latest(name);
-  if(!current)throw Error('Flow not found in the configured Salesforce org.');
+  if(!current)throw flowUnavailable(name,'The flow was not found or is not accessible in the connected org.');
   if(context.id && !current.Id.startsWith(context.id.slice(0,15)))throw Error('The opened flow is an older version. Open the latest version before editing.');
   if(context.version && Number(current.VersionNumber)!==context.version)throw Error('The opened flow is an older version. Open the latest version before editing.');
   actionProgress?.update(`Reading ${name}, version ${current.VersionNumber}, from Salesforce…`);
@@ -189,6 +227,12 @@ async function loadFlow(){
   actionProgress?.done('load',`${name} · version ${current.VersionNumber} loaded`);
 }
 $('load').addEventListener('click',()=>run(loadFlow));
+$('flowFeedbackChoose').addEventListener('click',()=>{
+  if(busy)return;
+  $('flowSelection').hidden=false;$('flowSelection').open=true;
+  $('flowName').value='';$('flowName').focus();
+});
+$('flowFeedbackRetry').addEventListener('click',()=>run(loadFlow));
 $('chatForm').addEventListener('submit',event=>{event.preventDefault();run(async()=>{
   if(!config){$('settings').open=true;throw Error('Connect Salesforce and add your Claude key in settings to get started.');}
   const {pendingDeployment}=await chrome.storage.local.get('pendingDeployment');
@@ -258,7 +302,7 @@ async function openSavedVersion(result,id){
   if(pending){
     try{
       for(let attempt=0;attempt<3;attempt++){
-        const versions=await query(config,`SELECT Id, VersionNumber, LastModifiedDate FROM Flow WHERE Definition.DeveloperName = '${pending.name}' ORDER BY VersionNumber DESC LIMIT 1`);
+        const versions=await query(config,`SELECT Id, VersionNumber, LastModifiedDate FROM Flow WHERE ${flowFilter(pending.name)} ORDER BY VersionNumber DESC LIMIT 1`);
         saved=versions[0];
         if(saved && /^301[a-zA-Z0-9]{12}(?:[a-zA-Z0-9]{3})?$/.test(saved.Id))break;
         saved=undefined;
