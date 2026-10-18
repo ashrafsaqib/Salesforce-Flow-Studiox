@@ -1,4 +1,4 @@
-﻿import {NS,escapeXml,parseXml,elements,value,draftXml,soap,query,zip,base64} from './api.js';
+import {NS,escapeXml,parseXml,elements,value,draftXml,soap,query,zip,base64} from './api.js';
 import {instanceFromTabUrl} from './salesforce-url.js';
 import {flowFilter,flowApiName} from './flow-identity.js';
 import {connectSalesforce,oauthRedirectUrl} from './oauth.js';
@@ -33,7 +33,7 @@ async function ensureFlowTab(){
 const modeViews={understand:{nodes:[],draft:''},edit:{nodes:[],draft:''}};
 function finishConnectionUI(){
   $('settings').open=false;
-  for(const id of ['settingsToggle','headerConnect'])$(id).setAttribute('aria-expanded','false');
+  $('settingsToggle').setAttribute('aria-expanded','false');
   $('modeHint').hidden=false;
   $('understandMode').parentElement.classList.add('mode-highlight');
   $('modeHint').scrollIntoView({block:'nearest',behavior:'smooth'});
@@ -43,7 +43,11 @@ function dismissModeHint(){
   $('modeHint').hidden=true;
   $('understandMode').parentElement.classList.remove('mode-highlight');
 }
+function updateConnectRequired(){
+  $('connectRequired').hidden=Boolean(config?.instance && config?.token && config?.apiKey && config?.model && config?.version);
+}
 function renderMode(){
+  updateConnectRequired();
   const copy=MODES[mode];document.body.dataset.mode=mode;
   for(const key of Object.keys(MODES)){
     const button=$(key+'Mode');button.classList.toggle('selected',key===mode);button.setAttribute('aria-pressed',String(key===mode));
@@ -63,6 +67,8 @@ function renderMode(){
 function setMode(next){
   if(busy || !MODES[next])return;
   dismissModeHint();
+  $('settings').open=false;
+  updateConnectRequired();
   if(next===mode){$('prompt').focus();return;}
   modeViews[mode]={nodes:[...$('messages').childNodes],draft:$('prompt').value};
   mode=next;actionProgress=undefined;
@@ -72,12 +78,15 @@ function setMode(next){
 let detectedInstance=null;
 function updateConnectionActions(showStatus=false){
   $('salesforceLogin').hidden=showStatus || Boolean(detectedInstance);
-  $('headerConnect').hidden=showStatus || !detectedInstance;
+  $('settingsToggle').textContent=showStatus?'Settings':'Connect';
 }
 function detectSalesforceTab(tab){
   let detected=null;
   try{detected=instanceFromTabUrl(tab.url);}catch{/* Non-web tabs have no instance. */}
   detectedInstance=detected;
+  let isFlowPage=false;
+  if(detected){try{isFlowPage=/flowBuilder[.]app/i.test(decodeURIComponent(tab.url));}catch{}}
+  $('flowPageRequired').hidden=isFlowPage;
   updateConnectionActions(!$('connectionBadge').hidden);
   if(!detected){$('instanceHint').textContent='Log in to Salesforce to detect your instance, or enter its URL manually.';return;}
   const previous=$('instance').value.trim();
@@ -121,7 +130,25 @@ function connectionState(state,label,detail=''){
   $('connectionBadge').title=detail;
 }
 let connectionCheck=0;
+function updateConfigFeedback(){
+  updateConnectRequired();
+  const filled=id=>Boolean($(id).value.trim());
+  const salesforceReady=filled('instance') && Boolean(instanceFromTabUrl($('instance').value.trim())) && filled('token') && /^\d+\.0$/.test($('version').value.trim());
+  const claudeReady=filled('apiKey') && filled('model');
+  for(const [id,label,ready] of [['salesforceConfigStatus','Salesforce instance config',salesforceReady],['claudeConfigStatus','Claude config',claudeReady]]){
+    const indicator=$(id);
+    indicator.classList.toggle('complete',ready);indicator.classList.toggle('incomplete',!ready);
+    indicator.firstElementChild.textContent=ready?'\u2713':'\u2715';
+    indicator.lastElementChild.textContent=`${label}: ${ready?'all set':'incomplete'}`;
+    indicator.title=ready?'Required fields are filled. Credentials are checked when connecting or sending a prompt.':(id==='salesforceConfigStatus'?'Add a valid Salesforce instance URL, connect Salesforce or enter a token, and set an API version.':'Add your Claude API key and model.');
+  }
+}
+$('settingsForm').addEventListener('input',updateConfigFeedback);
+$('settingsForm').addEventListener('change',updateConfigFeedback);
+$('settings').addEventListener('toggle',updateConfigFeedback);
+updateConfigFeedback();
 async function verifyConnection(){
+  updateConfigFeedback();
   const check=++connectionCheck;
   const instance=$('instance').value.trim(),token=$('token').value.trim(),version=$('version').value.trim();
   $('modelLabel').title=$('apiKey').value.trim()?`Configured model: ${$('model').value}. Claude is verified when a prompt succeeds.`:'Add your Claude API key in settings.';
@@ -233,7 +260,7 @@ $('flowFeedbackChoose').addEventListener('click',()=>{
   $('flowName').value='';$('flowName').focus();
 });
 $('flowFeedbackRetry').addEventListener('click',()=>run(loadFlow));
-$('chatForm').addEventListener('submit',event=>{event.preventDefault();run(async()=>{
+$('chatForm').addEventListener('submit',event=>{event.preventDefault();if(!$('flowPageRequired').hidden){$('flowPageRequired').scrollIntoView({block:'nearest'});status('Open a Salesforce Flow Builder page and launch the extension from that tab first.',true);return;}run(async()=>{
   if(!config){$('settings').open=true;throw Error('Connect Salesforce and add your Claude key in settings to get started.');}
   const {pendingDeployment}=await chrome.storage.local.get('pendingDeployment');
   if(mode==='edit' && pendingDeployment && pendingDeployment.instance===config.instance){
@@ -400,8 +427,8 @@ async function init(){
   }
   if(!$('settings').open)$('prompt').focus();
 }
-$('settingsToggle').addEventListener('click',()=>{$('settings').open=!$('settings').open;});
-$('headerConnect').addEventListener('click',()=>{$('settings').open=true;$('instance').focus();});
+$('settingsToggle').addEventListener('click',()=>{$('settings').open=!$('settings').open;if($('settings').open)$('instance').focus();});
+
 $('salesforceLogin').addEventListener('click',async()=>{
   try{
     const tab=await chrome.tabs.create({url:'https://login.salesforce.com/'});
@@ -412,7 +439,8 @@ $('salesforceLogin').addEventListener('click',async()=>{
 chrome.tabs.onUpdated.addListener((id,change,tab)=>{
   if(id===flowTabId && (change.url || change.status==='complete'))detectSalesforceTab(tab);
 });
-$('settings').addEventListener('toggle',()=>{for(const id of ['settingsToggle','headerConnect'])$(id).setAttribute('aria-expanded',String($('settings').open));});
+$('settings').addEventListener('toggle',()=>{$('settingsToggle').setAttribute('aria-expanded',String($('settings').open));});
+$('connectRequiredButton').addEventListener('click',()=>{$('settings').open=true;$('instance').focus();});
 $('understandMode').addEventListener('click',()=>setMode('understand'));
 $('editMode').addEventListener('click',()=>setMode('edit'));
 $('suggestions').addEventListener('click',event=>{
@@ -425,5 +453,5 @@ $('prompt').addEventListener('keydown',event=>{if(event.key==='Enter' && (event.
 $('xml').addEventListener('input',()=>{$('save').disabled=busy || !loaded || !$('xml').value || $('xml').value===savedXml;$('save').textContent='Save edited XML as new version';});
 for(const id of ['instance','token','version'])$(id).addEventListener('input',()=>{connectionCheck++;connectionState('','Settings changed','Save settings to verify this connection.');});
 renderMode();
-init().catch(error=>status(error.message,true));
+init().catch(error=>status(error.message,true)).finally(updateConfigFeedback);
 
