@@ -169,11 +169,12 @@ async function verifyConnection(){
   }
 }
 function configure(raw){
-  const url=new URL(raw.instance);
-  if(url.protocol!=='https:' || !/(^|\.)(salesforce\.com|force\.com)$/.test(url.hostname) || url.username || url.password) throw Error('Use an HTTPS Salesforce instance URL.');
+  let instance=null;
+  try{instance=instanceFromTabUrl(raw.instance);}catch{/* Rejected below. */}
+  if(!instance) throw Error('Use an HTTPS Salesforce instance URL (my.salesforce.com or a supported Salesforce host).');
   if(!/^\d+\.0$/.test(raw.version)) throw Error('Invalid Salesforce API version.');
   if(!raw.token || !raw.apiKey || !raw.model) throw Error('Complete the connection settings first.');
-  return {...raw,instance:url.origin};
+  return {...raw,instance};
 }
 async function run(task){if(busy)return;busy=true;document.body.classList.add('busy');$('conversation').setAttribute('aria-busy','true');for(const id of ['load','send','save','connect','settingsSave','understandMode','editMode'])$(id).disabled=true;try{await task();}catch(error){status(error.message,true);if(actionProgress?.running){if(actionProgress.current==='save')$('artifactStatus').textContent='Autosave needs attention · see activity';actionProgress.fail(error.message,MODES[mode].failureTitle);}if(error.httpStatus===401 || /INVALID_SESSION_ID/.test(error.message))connectionState('failed','Reconnect Salesforce');}finally{busy=false;document.body.classList.remove('busy');$('conversation').setAttribute('aria-busy','false');for(const id of ['load','send','connect','settingsSave','understandMode','editMode'])$(id).disabled=false;$('save').disabled=!loaded || !$('xml').value || $('xml').value===savedXml;$('artifact').hidden=mode!=='edit' || !$('xml').value;}}
 async function tabContext(){
@@ -278,7 +279,7 @@ $('chatForm').addEventListener('submit',event=>{event.preventDefault();if(!$('fl
   if(understandFlowKey!==flowKey){understandHistory=[];understandFlowKey=flowKey;}
   status(copy.status);
   actionProgress.update(copy.progressDetail);
-  const response=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':config.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify(flowRequest(requestMode,{model:config.model,name:loaded.name,xml:source,prompt,history:understandHistory}))});
+  const response=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':config.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},credentials:'omit',referrerPolicy:'no-referrer',body:JSON.stringify(flowRequest(requestMode,{model:config.model,name:loaded.name,xml:source,prompt,history:understandHistory}))});
   const data=await response.json();if(!response.ok)throw Error(data.error?.message || `Claude HTTP ${response.status}`);
   if(data.stop_reason!=='end_turn')throw Error(mode==='understand'?`The answer was cut short (${data.stop_reason}). Try a more specific question.`:`Claude did not finish (${data.stop_reason}). No XML saved; use a model with sufficient output capacity or a smaller flow.`);
   let answer=(data.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('\n').trim();
