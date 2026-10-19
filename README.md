@@ -2,6 +2,8 @@
 
 Understand and edit Salesforce Flows through conversation with Claude. Flow Studiox is a dependency-free Chrome extension that reads saved Flow XML, answers questions, and saves requested changes as a new draft in Salesforce Flow Builder.
 
+> **Safety warning:** Flow Studiox is not recommended for production use. Use it only with a sandbox or test org. When you finish using it, disable the Salesforce External Client App (or Connected App) configured for OAuth to prevent further access.
+
 [![Flow Studiox: understand Salesforce Flows and change them through conversation](flow-studiox-linkedin-banner.png)](https://youtu.be/nemAxwR_bLE?si=CyEqwO15f_n4rr92)
 
 **[Watch the demo and installation walkthrough on YouTube](https://youtu.be/nemAxwR_bLE?si=CyEqwO15f_n4rr92)**
