@@ -19,7 +19,7 @@ export function draftXml(xml) {
 }
 export async function soap(config, operation, body) {
   const response = await fetch(`${config.instance}/services/Soap/m/${config.version}`, {
-    method:'POST', headers:{'Content-Type':'text/xml; charset=UTF-8', SOAPAction:operation},
+    method:'POST', credentials:'omit', headers:{'Content-Type':'text/xml; charset=UTF-8', SOAPAction:operation},
     body:`<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" xmlns="${NS}"><s:Header><SessionHeader><sessionId>${escapeXml(config.token)}</sessionId></SessionHeader></s:Header><s:Body><${operation}>${body}</${operation}></s:Body></s:Envelope>`
   });
   const doc = parseXml(await response.text());
@@ -28,7 +28,7 @@ export async function soap(config, operation, body) {
   return doc;
 }
 export async function query(config, soql, options = {}) {
-  const response = await fetch(`${config.instance}/services/data/v${config.version}/tooling/query/?q=${encodeURIComponent(soql)}`, {headers:{Authorization:`Bearer ${config.token}`},signal:options.signal});
+  const response = await fetch(`${config.instance}/services/data/v${config.version}/tooling/query/?q=${encodeURIComponent(soql)}`, {credentials:'omit',headers:{Authorization:`Bearer ${config.token}`},signal:options.signal});
   const data = await response.json();
   if (!response.ok) throw Object.assign(Error(data[0]?.message || `Salesforce HTTP ${response.status}`), {httpStatus:response.status});
   return data.records;

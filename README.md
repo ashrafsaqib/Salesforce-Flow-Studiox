@@ -23,7 +23,7 @@ You need Chrome, a Salesforce user with API access and metadata deployment/flow 
 
 1. Download or clone this repository. Open `chrome://extensions`, enable **Developer mode**, and click **Load unpacked**. Select the repository folder containing `manifest.json`.
 2. Pin **Flow Studiox**, open the latest saved version of a flow in Salesforce Flow Builder, and click the extension icon.
-3. Click **Connect** or the header settings button. Confirm the detected Salesforce instance URL, enter your administrator's **Consumer Key (Client ID)**, and click **Connect Salesforce**. Complete login and consent. A manual access token can also be entered under **OAuth setup & manual token**.
+3. Click **Connect** or the header settings button. Confirm the detected Salesforce instance URL, enter your administrator's **Consumer Key (Client ID)**, and click **Connect Salesforce**. Complete login and consent.
 4. Enter your **Claude API key**, a model available to your account, and a supported **Salesforce API version**. Click **Save connection**.
 5. Click **Load opened flow** if the flow has not loaded automatically. If detection fails, enter its Flow API name.
 6. Ask a question in **Understand**, or switch to **Edit** and describe a change. Send with **Ctrl+Enter** (**Cmd+Enter** on Mac), or use the send button.
